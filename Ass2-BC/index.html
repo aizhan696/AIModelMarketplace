@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Model Marketplace</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #ffe6e6;
+      color: #333;
+      text-align: center;
+    }
+    h1 {
+      color: #ff66b3;
+    }
+    form, button {
+      margin: 20px auto;
+      padding: 10px;
+      width: 300px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    input, button {
+      width: 90%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 2px solid #ff66b3;
+      border-radius: 5px;
+    }
+    button {
+      background-color: #ff66b3;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #ff3385;
+    }
+    #model-list, #model-details {
+      padding: 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      margin-top: 20px;
+    }
+    .model {
+      border-bottom: 1px solid #ccc;
+      padding: 10px 0;
+    }
+    #model-details {
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <h1>AI Model Marketplace</h1>
+
+  <h2>List a New AI Model</h2>
+  <form id="listModelForm">
+    <input type="text" id="modelName" placeholder="Model Name" required>
+    <input type="text" id="modelDescription" placeholder="Model Description" required>
+    <input type="number" id="modelPrice" placeholder="Model Price (ETH)" required>
+    <button type="submit">List Model</button>
+  </form>
+
+  <h2>Available AI Models</h2>
+  <div id="model-list">Loading models...</div>
+
+  <h2>Get AI Model Details</h2>
+  <form id="getModelForm">
+    <input type="number" id="modelId" placeholder="Model ID" required>
+    <button type="submit">Get Details</button>
+  </form>
+  <div id="model-details">Model details will be displayed here...</div>
+
+  <h2>Rate a Purchased AI Model</h2>
+  <form id="rateModelForm">
+    <input type="number" id="rateModelId" placeholder="Model ID" required>
+    <input type="number" id="modelRating" placeholder="Rating (1-5)" required>
+    <button type="submit">Rate Model</button>
+  </form>
+
+  <h2>Withdraw Funds</h2>
+  <div id="contractBalance">Contract Balance: 0 ETH</div>
+  <button onclick="withdrawFunds()">Withdraw</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/web3/dist/web3.min.js"></script>
+  <script>
+    const web3 = new Web3('http://127.0.0.1:7545'); // Connect to Ganache local blockchain
+
+    const contractABI = [
+      {
+        "inputs": [
+          { "internalType": "string", "name": "name", "type": "string" },
+          { "internalType": "string", "name": "description", "type": "string" },
+          { "internalType": "uint256", "name": "price", "type": "uint256" }
+        ],
+        "name": "listModel",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          { "internalType": "uint256", "name": "modelId", "type": "uint256" }
+        ],
+        "name": "purchaseModel",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          { "internalType": "uint256", "name": "modelId", "type": "uint256" },
+          { "internalType": "uint8", "name": "rating", "type": "uint8" }
+        ],
+        "name": "rateModel",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      { "inputs": [], "stateMutability": "nonpayable", "type": "constructor" },
+      {
+        "inputs": [],
+        "name": "withdrawFunds",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          { "internalType": "uint256", "name": "modelId", "type": "uint256" }
+        ],
+        "name": "getModelDetails",
+        "outputs": [
+          { "internalType": "string", "name": "", "type": "string" },
+          { "internalType": "string", "name": "", "type": "string" },
+          { "internalType": "uint256", "name": "", "type": "uint256" },
+          { "internalType": "address", "name": "", "type": "address" },
+          { "internalType": "uint256", "name": "", "type": "uint256" }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "modelCount",
+        "outputs": [
+          { "internalType": "uint256", "name": "", "type": "uint256" }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "owner",
+        "outputs": [
+          { "internalType": "address", "name": "", "type": "address" }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ];
+    const contractAddress = '0xfAFfB768b268a22c39476e33eFb740fdc92830F6'; //contract address from Ganache
+
+    const AIModelMarketplace = new web3.eth.Contract(contractABI, contractAddress);
+
+    // Function to list a new model
+    document.getElementById('listModelForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const name = document.getElementById('modelName').value;
+      const description = document.getElementById('modelDescription').value;
+      const price = web3.utils.toWei(document.getElementById('modelPrice').value, 'ether');
+
+      try {
+        const accounts = await web3.eth.getAccounts();
+        const account = accounts[0];
+
+        await AIModelMarketplace.methods.listModel(name, description, price).send({
+          from: account,
+          gas: 300000,
+          gasPrice: web3.utils.toWei('20', 'gwei')
+        });
+        alert('Model listed successfully!');
+        loadModels();
+        updateContractBalance(); // Update the contract balance after listing
+      } catch (error) {
+        console.error('Error listing model:', error);
+        alert('Failed to list model. Check console for error.');
+      }
+    });
+
+    // Function to load all models (show model names and purchase button)
+    async function loadModels() {
+      const modelList = document.getElementById('model-list');
+      modelList.innerHTML = '';
+
+      try {
+        const modelCount = await AIModelMarketplace.methods.modelCount().call();
+        for (let i = 0; i < modelCount; i++) {
+          const model = await AIModelMarketplace.methods.getModelDetails(i).call();
+          const modelElement = document.createElement('div');
+          modelElement.className = 'model';
+          modelElement.innerHTML = `
+            <strong>${model[0]}</strong><br>
+            <button onclick="purchaseModel(${i}, '${web3.utils.fromWei(model[2], 'ether')}')">Purchase</button>
+          `;
+          modelList.appendChild(modelElement);
+        }
+      } catch (error) {
+        console.error('Error loading models:', error);
+        modelList.innerHTML = 'Error loading models.';
+      }
+    }
+
+    // Function to purchase a model
+    async function purchaseModel(modelId, price) {
+      try {
+        const accounts = await web3.eth.getAccounts();
+        const account = accounts[0];
+
+        await AIModelMarketplace.methods.purchaseModel(modelId).send({
+          from: account,
+          value: web3.utils.toWei(price, 'ether')
+        });
+        alert('Model purchased successfully!');
+        updateContractBalance(); // Update the contract balance after purchase
+      } catch (error) {
+        console.error('Error purchasing model:', error);
+        alert('Failed to purchase model. Check console for error.');
+      }
+    }
+
+    // Function to get model details and display them in the model details section
+    document.getElementById('getModelForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const modelId = document.getElementById('modelId').value;
+      const modelDetailsDiv = document.getElementById('model-details');
+
+      try {
+        const model = await AIModelMarketplace.methods.getModelDetails(modelId).call();
+        modelDetailsDiv.innerHTML = `
+          <strong>Model Name:</strong> ${model[0]}<br>
+          <strong>Description:</strong> ${model[1]}<br>
+          <strong>Price:</strong> ${web3.utils.fromWei(model[2], 'ether')} ETH<br>
+          <strong>Creator:</strong> ${model[3]}<br>
+          <strong>Average Rating:</strong> ${model[4]}
+        `;
+      } catch (error) {
+        console.error('Error loading model details:', error);
+        modelDetailsDiv.innerHTML = 'Error loading model details.';
+      }
+    });
+
+    // Function to rate a model
+    document.getElementById('rateModelForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const modelId = document.getElementById('rateModelId').value;
+      const rating = document.getElementById('modelRating').value;
+
+      try {
+        const accounts = await web3.eth.getAccounts();
+        const account = accounts[0];
+
+        await AIModelMarketplace.methods.rateModel(modelId, rating).send({
+          from: account
+        });
+        alert('Model rated successfully!');
+      } catch (error) {
+        console.error('Error rating model:', error);
+        alert('Failed to rate model. Check console for error.');
+      }
+    });
+
+    // Function to withdraw funds
+    async function withdrawFunds() {
+      try {
+        const accounts = await web3.eth.getAccounts();
+        const account = accounts[0];
+
+        await AIModelMarketplace.methods.withdrawFunds().send({ from: account });
+        alert('Funds withdrawn successfully!');
+        updateContractBalance(); // Update the contract balance after withdrawal
+      } catch (error) {
+        console.error('Error withdrawing funds:', error);
+        alert('Failed to withdraw funds. Check console for error.');
+      }
+    }
+
+    // Function to get contract balance and update it in the frontend
+    async function updateContractBalance() {
+      try {
+        const balance = await web3.eth.getBalance(contractAddress);
+        const balanceInEther = web3.utils.fromWei(balance, 'ether');
+        document.getElementById('contractBalance').innerText = `Contract Balance: ${balanceInEther} ETH`;
+      } catch (error) {
+        console.error('Error getting contract balance:', error);
+      }
+    }
+
+    // Load models and update contract balance when the page loads
+    window.onload = async function() {
+      loadModels(); // Load models
+      updateContractBalance(); // Update contract balance
+    };
+
+  </script>
+</body>
+</html>
